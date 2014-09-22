@@ -158,16 +158,16 @@ void CrBitmap(HDC hdc,RECT rect)
 	}
 	
 	SelectObject(hdcMem, oldBitmap);
+	DeleteObject(oldBitmap);
 	DeleteDC(hdcMem);
 
 }
-
+HBITMAP hBitmap;
 
 void LdBitmap(HDC hdc,HWND hWnd,RECT rect)
 {
 
-	HDC hdcMem = CreateCompatibleDC(hdc);
-	
+	HDC hdcMem = CreateCompatibleDC(hdc);	
 	if(flag1)
 	{		
 		if(curBitmap>0)
@@ -175,12 +175,14 @@ void LdBitmap(HDC hdc,HWND hWnd,RECT rect)
 			curBitmap--;
 		}
 		else bitmaps[0]=PrevBitmap;
-	}		
-	HBITMAP hBitmap = CreateCompatibleBitmap(hdcMem,rect.right,rect.bottom);	
-	hBitmap = bitmaps[curBitmap];		
+	}			
+	hBitmap = bitmaps[curBitmap];			
 	HGDIOBJ oldBitmap = SelectObject(hdcMem, hBitmap);
+	BITMAP bitmap;
+	GetObject(hBitmap,sizeof(bitmap),&bitmap);
 	BitBlt(hdc, 0, 0, rect.right, rect.bottom, hdcMem, 0, 0, SRCCOPY);
 	SelectObject(hdcMem, oldBitmap);
+	
 	DeleteDC(hdcMem);
 }
 
@@ -229,13 +231,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuFile,L"File");
 		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuDraw,L"Draw");
 		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuAction,L"Action");		
-		AppendMenu(SubMenuFile, MF_STRING, 1, L"Exit");
 		AppendMenu(SubMenuDraw, MF_STRING, 3, L"Pen");
 		AppendMenu(SubMenuDraw, MF_STRING, 4, L"Line");	
 		AppendMenu(SubMenuDraw, MF_STRING, 5, L"Triangle");
 		AppendMenu(SubMenuDraw, MF_STRING, 6, L"Rectangle");
 		AppendMenu(SubMenuDraw, MF_STRING, 7, L"Ellipse");
-		AppendMenu(SubMenuDraw, MF_STRING, 8, L"Poliline");
+		AppendMenu(SubMenuDraw, MF_STRING, 8, L"Poliline");		
+		AppendMenu(SubMenuFile, MF_STRING, 10, L"SaveFile");
+		AppendMenu(SubMenuFile, MF_STRING, 11, L"OpenFile");
+		AppendMenu(SubMenuFile, MF_STRING, 11, L"Print");
+		AppendMenu(SubMenuFile, MF_STRING, 12, L"Exit");
+		AppendMenu(SubMenuAction, MF_STRING, 20, L"Zoom");
+		AppendMenu(SubMenuAction, MF_STRING, 21, L"Move");
 		SetMenu(hWnd, MainMenu);	
 		break;
 
@@ -285,6 +292,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				hdcMem = CreateCompatibleDC(hdc);				
 				hBitmap = CreateCompatibleBitmap(hdc,rect.right,rect.bottom);							
 				oldBitmap = SelectObject(hdcMem, hBitmap);
+				FillRect(hdcMem,&rect,WHITE_BRUSH);
+			//	DeleteObject(SelectObject(hdcMem, hBitmap));
 				LdBitmap(hdcMem,hWnd,rect);
 			}
 			switch(status)
@@ -316,13 +325,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}	
 			if(status>3 && status<8)
 			{
+				
 				BitBlt(hdc, 0, 0, rect.right, rect.bottom, hdcMem, 0, 0, SRCCOPY);					
 				SelectObject(hdcMem, oldBitmap);
+				DeleteObject(hBitmap);
 				DeleteDC(hdcMem);	
 			}
 
 		}
 		PrevPoint=EndPoint;
+		GetFocus();
 		ReleaseDC(hWnd,hdc);
 		break;
     case WM_PAINT:
