@@ -114,6 +114,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    return TRUE;
 }
 
+HBITMAP hBitmap;
 HBITMAP bitmaps[5];
 HBITMAP PrevBitmap;
 int  status=3;
@@ -152,7 +153,7 @@ void CrBitmap(HDC hdc,RECT rect)
 	DeleteDC(hdcMem);
 
 }
-HBITMAP hBitmap;
+
 
 void LdBitmap(HDC hdc,HWND hWnd,RECT rect)
 {
@@ -186,7 +187,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	int wmId, wmEvent;
 	PAINTSTRUCT ps;
-	HDC static hdc,hdc1; 
+	HDC static hdc,hdc1,hdc2; 
 	POINT static StartPoint,EndPoint,PrevPoint,StartPolylinePoint,PrevPolylinePoint;	
 	RECT static rect;
 	BOOL static bText=false;
@@ -206,8 +207,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	HBRUSH static hBrush;
 	POINT static PointsPolygon[20];
 	int static PointsCount=0;
-	static COLORREF  crCustColor[16];
-	static CHOOSECOLOR ccPen,ccBrush;
+	COLORREF static  crCustColor[16];
+	CHOOSECOLOR static ccPen,ccBrush;
+	OPENFILENAME static ofn;
+	LPWSTR static fullpath,filename,dir;
+	HENHMETAFILE static hEnhMtf;
+	ENHMETAHEADER static emh;
+	PRINTDLG static pd;
+	BOOL static bZoom;
+	double static Delta,Scale;
 	switch (message)
 	{
 	case WM_CREATE:			
@@ -230,9 +238,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		AppendMenu(SubMenuDraw, MF_STRING, 1, L"Text");	
 		
 		AppendMenu(SubMenuFile, MF_STRING, 13, L"New");
+		AppendMenu(SubMenuFile, MF_STRING, 11, L"Open");		
 		AppendMenu(SubMenuFile, MF_STRING, 10, L"Save");
-		AppendMenu(SubMenuFile, MF_STRING, 11, L"Open");
-		AppendMenu(SubMenuFile, MF_STRING, 11, L"Print");
+		AppendMenu(SubMenuFile, MF_STRING, 14, L"Print");
 		AppendMenu(SubMenuFile, MF_STRING, 12, L"Exit");
 		
 		AppendMenu(SubMenuAction, MF_STRING, 20, L"Pan");		
@@ -324,6 +332,84 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			hPen=CreatePen(PS_SOLID, Width, ccPen.rgbResult);
 			DeleteObject(SelectObject(hdc,hPen));
 		}
+		if(wParam==10)
+		{
+			
+			ofn.lStructSize=sizeof(OPENFILENAME);
+			ofn.hwndOwner=hWnd;
+			ofn.hInstance=hInst; 
+			ofn.lpstrFilter=L"Metafile (*.emf)\0*.emf\0Все файлы (*.*)\0*.*\0";
+			ofn.nFilterIndex=1;
+			ofn.lpstrFile=fullpath;
+			ofn.nMaxFile=sizeof(fullpath);
+			ofn.lpstrFileTitle=filename;
+			ofn.nMaxFileTitle=sizeof(filename);
+			ofn.lpstrInitialDir=dir;
+			ofn.lpstrTitle=L"Save file as...";
+			ofn.Flags=OFN_PATHMUSTEXIST|OFN_OVERWRITEPROMPT|OFN_HIDEREADONLY|OFN_EXPLORER;
+			if(GetSaveFileName(&ofn))
+			{
+				
+			}
+		}
+		if(wParam==11)
+		{
+			ofn.lStructSize=sizeof(OPENFILENAME);
+			ofn.hwndOwner=hWnd;
+			ofn.hInstance=hInst; 
+			ofn.lpstrFilter=L"Metafile (*.emf)\0*.emf\0Все файлы (*.*)\0*.*\0";
+			ofn.nFilterIndex=1;
+			ofn.lpstrFile=fullpath;
+    		ofn.nMaxFile=sizeof(fullpath);
+			ofn.lpstrFileTitle=filename;
+			ofn.nMaxFileTitle=sizeof(filename);
+			ofn.lpstrInitialDir=dir;
+			ofn.lpstrTitle=L"Open file...";
+			ofn.Flags=OFN_EXPLORER|OFN_CREATEPROMPT|OFN_ALLOWMULTISELECT;
+			if(GetOpenFileName(&ofn))
+			{
+              
+			}
+		}
+		
+		if(wParam==12) PostQuitMessage(0);
+		
+		if(wParam==13)
+		{
+			FillRect(hdc,&rect,WHITE_BRUSH);	
+		}
+		if(wParam==14)
+		{
+			ZeroMemory(&pd, sizeof(pd));
+			pd.lStructSize = sizeof(pd);
+			pd.hwndOwner   = hWnd;
+			pd.hDevMode    = NULL; // Не забудьте освободить или сохранить hDevMode
+			pd.hDevNames   = NULL; // Не забудьте освободить или сохранить hDevNames
+			pd.Flags       = PD_USEDEVMODECOPIESANDCOLLATE | PD_RETURNDC;
+			pd.nCopies     = 1;
+			pd.nFromPage   = 0xFFFF;
+			pd.nToPage     = 0xFFFF;
+			pd.nMinPage    = 1;
+			pd.nMaxPage    = 0xFFFF;
+
+
+			if (PrintDlg(&pd)==TRUE)
+			{
+				
+			}
+
+
+		}
+		if(wParam==21) 
+		{
+			bZoom=true;
+			Scale=1;
+			//Delta=0;
+		}
+		else
+		{	
+		//	bZoom=false;
+		}
 		switch (wmId)
 		{
 		case IDM_ABOUT:
@@ -337,9 +423,36 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		break;
 
-
+		case WM_MOUSEWHEEL:
+			if(bZoom)
+			{
+		
+				GetClientRect(hWnd,&rect);
+				CompabitibleDC = CreateCompatibleDC(hdc);				
+				CompabitibleBitmap = CreateCompatibleBitmap(hdc,rect.right,rect.bottom);							
+				oldBitmap1 = SelectObject(CompabitibleDC, CompabitibleBitmap);
+				FillRect(CompabitibleDC,&rect,WHITE_BRUSH);
+				LdBitmap(CompabitibleDC,hWnd,rect);	
+				Delta = GET_WHEEL_DELTA_WPARAM(wParam);			
+				if(Delta>0)Scale=Scale+0.03;
+				if(Delta<0) Scale=Scale-0.03;
+				FillRect(hdc,&rect,WHITE_BRUSH);
+				StretchBlt(hdc,0,0,rect.right*Scale,rect.bottom*Scale,CompabitibleDC,0,0,rect.right,rect.bottom,SRCCOPY);
+				SelectObject(CompabitibleDC, oldBitmap1);
+				DeleteObject(CompabitibleBitmap);
+				DeleteDC(CompabitibleDC);
+			}
+			
+			
+			break;
 
 	case WM_LBUTTONDOWN:		
+		if(bZoom)
+		{
+			bZoom=false;
+			LdBitmap(hdc,hWnd,rect);
+
+		}
 		if(Start) 
 		{	
 			GetClientRect(hWnd,&rect);
@@ -362,6 +475,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			LdBitmap(CompabitibleDC,hWnd,rect);		
 		}
 		Move=true;
+		
 		if(bPolyline)
 		{
 			PointsPolygon[PointsCount].x=StartPoint.x;
@@ -375,6 +489,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			PrevPolylinePoint.y=HIWORD(lParam);
 		}	
 		break;
+
 	case WM_RBUTTONDOWN:
 		if(bStartPolyline)
 		{
@@ -385,10 +500,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				
 				DeleteObject(SelectObject(CompabitibleDC,hBrush));
 				Polygon(CompabitibleDC,PointsPolygon,PointsCount);
-				PointsCount=0;
-				//MoveToEx(CompabitibleDC,PrevPolylinePoint.x,PrevPolylinePoint.y,NULL);	
-			//	LineTo(CompabitibleDC,StartPolylinePoint.x,StartPolylinePoint.y);				
+							
 			}
+			PointsCount=0;	
 			BitBlt(hdc,0,0,rect.right,rect.bottom,CompabitibleDC,0,0,SRCCOPY);
 			CrBitmap(hdc,rect);							
 			SelectObject(CompabitibleDC, oldBitmap1);
@@ -396,20 +510,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			DeleteDC(CompabitibleDC);
 		}
 		break;
-	case WM_KEYDOWN:
-		if ((GetAsyncKeyState(VK_CONTROL)) && (GetAsyncKeyState(0x5A)))
-		{
-			Cancel = true;		
-			InvalidateRect(hWnd,NULL,TRUE);
-			UpdateWindow(hWnd);		
-		}
-		break;
-	case  WM_CHAR:
-		if(bText)
-		{
-								
-		}
-		break;	
+
+		
+
 	case WM_LBUTTONUP:
 		Move=false;	
 		if(!bStartPolyline) 
@@ -430,6 +533,23 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			
 		}
 		break;
+
+	case WM_KEYDOWN:
+		if ((GetAsyncKeyState(VK_CONTROL)) && (GetAsyncKeyState(0x5A)))
+		{
+			Cancel = true;		
+			InvalidateRect(hWnd,NULL,TRUE);
+			UpdateWindow(hWnd);		
+		}
+		break;
+
+	case  WM_CHAR:
+		if(bText)
+		{
+								
+		}
+		break;
+
 	case WM_MOUSEMOVE:			
 		EndPoint.x=LOWORD(lParam);	     
 		EndPoint.y=HIWORD(lParam);	       		
