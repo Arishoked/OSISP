@@ -1,23 +1,10 @@
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #include "stdafx.h"
-#include "Win32Project1.h"
 #include <windows.h>
 #include <CommDlg.h>
 #include <stdio.h>
 #include <string>
+#include "Win32Project1.h"
+
 #define MAX_LOADSTRING 100
 
 // Глобальные переменные:
@@ -129,8 +116,9 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 HBITMAP bitmaps[5];
 HBITMAP PrevBitmap;
+int  status=3;
 int curBitmap=-1;
-bool static flag=false,flag1=false,flag2=false,flag3=true;
+bool  Move=false,Cancel=false,Start=true;
 
 void CrBitmap(HDC hdc,RECT rect)
 {
@@ -138,7 +126,9 @@ void CrBitmap(HDC hdc,RECT rect)
 	HDC hdcMem = CreateCompatibleDC(hdc);
 	HBITMAP hBitmap = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
 	HANDLE oldBitmap = SelectObject(hdcMem, hBitmap);
-	BitBlt(hdcMem, 0, 0, rect.right, rect.bottom, hdc, 0, 0, SRCCOPY);	
+	FillRect(hdcMem,&rect,WHITE_BRUSH);	
+	if(status==20) BitBlt(hdcMem, 0, 0, rect.right-4, rect.bottom-4, hdc, 0, 0, SRCCOPY);
+	else BitBlt(hdcMem, 0, 0, rect.right, rect.bottom, hdc, 0, 0, SRCCOPY);
 	PrevBitmap=bitmaps[0];	
 	if(curBitmap<4)
 	{
@@ -156,7 +146,7 @@ void CrBitmap(HDC hdc,RECT rect)
 		
 		bitmaps[4] = hBitmap;	
 	}
-	
+			
 	SelectObject(hdcMem, oldBitmap);
 	DeleteObject(oldBitmap);
 	DeleteDC(hdcMem);
@@ -168,7 +158,7 @@ void LdBitmap(HDC hdc,HWND hWnd,RECT rect)
 {
 
 	HDC hdcMem = CreateCompatibleDC(hdc);	
-	if(flag1)
+	if(Cancel)
 	{		
 		if(curBitmap>0)
 		{
@@ -178,9 +168,10 @@ void LdBitmap(HDC hdc,HWND hWnd,RECT rect)
 	}			
 	hBitmap = bitmaps[curBitmap];			
 	HGDIOBJ oldBitmap = SelectObject(hdcMem, hBitmap);
+	
 	BITMAP bitmap;
 	GetObject(hBitmap,sizeof(bitmap),&bitmap);
-	BitBlt(hdc, 0, 0, rect.right, rect.bottom, hdcMem, 0, 0, SRCCOPY);
+	 BitBlt(hdc, 0, 0, rect.right, rect.bottom, hdcMem, 0, 0, SRCCOPY);
 	SelectObject(hdcMem, oldBitmap);
 	
 	DeleteDC(hdcMem);
@@ -196,9 +187,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	int wmId, wmEvent;
 	PAINTSTRUCT ps;
 	HDC static hdc,hdc1; 
-	POINT static StartPoint,EndPoint,PrevPoint;	
+	POINT static StartPoint,EndPoint,PrevPoint,StartPolylinePoint,PrevPolylinePoint;	
 	RECT static rect;
-	int static status=3;
+	BOOL static bText=false;
+	BOOL static bPolyline=false;
+	BOOL static bStartPolyline=false;
 	int static Width=1;
 	HMENU static MainMenu = CreateMenu();
 	HMENU static SubMenuDraw = CreateMenu();
@@ -211,54 +204,109 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	HGDIOBJ static oldBitmap,oldBitmap1,oldPen,oldPen1;
 	HPEN static hPen=(PS_SOLID, 1, RGB(0,0,0));
 	HBRUSH static hBrush;
+	
 	static COLORREF  crCustColor[16];
-	static CHOOSECOLOR cc1,cc2;
+	static CHOOSECOLOR ccPen,ccBrush;
 	switch (message)
 	{
+	case WM_CREATE:			
+		ShowWindow(hWnd,SW_SHOWMAXIMIZED);
+		hdc=GetDC(hWnd);
+		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuFile,L"File");
+		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuDraw,L"Draw");
+		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuAction,L"Action");		
+		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuColor,L"Color");
+		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuWidth,L"Width");
+	
+		AppendMenu(SubMenuDraw, MF_STRING, 3, L"Pen");
+		AppendMenu(SubMenuDraw, MF_STRING, 4, L"Line");	
+		AppendMenu(SubMenuDraw, MF_STRING, 5, L"Triangle");
+		AppendMenu(SubMenuDraw, MF_STRING, 6, L"Rectangle");
+		AppendMenu(SubMenuDraw, MF_STRING, 7, L"Ellipse");
+		AppendMenu(SubMenuDraw, MF_STRING, 8, L"Polyline");	
+		AppendMenu(SubMenuDraw, MF_STRING, 9, L"Polygon");			
+		AppendMenu(SubMenuDraw, MF_STRING, 2, L"Eraser");	
+		AppendMenu(SubMenuDraw, MF_STRING, 1, L"Text");	
+		
+		AppendMenu(SubMenuFile, MF_STRING, 13, L"New");
+		AppendMenu(SubMenuFile, MF_STRING, 10, L"Save");
+		AppendMenu(SubMenuFile, MF_STRING, 11, L"Open");
+		AppendMenu(SubMenuFile, MF_STRING, 11, L"Print");
+		AppendMenu(SubMenuFile, MF_STRING, 12, L"Exit");
+		
+		AppendMenu(SubMenuAction, MF_STRING, 20, L"Pan");		
+		AppendMenu(SubMenuAction, MF_STRING, 21, L"Zoom");
+		
+		AppendMenu(SubMenuColor, MF_STRING, 30, L"PenColor");
+		AppendMenu(SubMenuColor, MF_STRING, 32, L"TransparentFill");
+		AppendMenu(SubMenuColor, MF_STRING, 31, L"FillColor");	
+		
+		AppendMenu(SubMenuWidth, MF_STRING, 41, L"1");
+		AppendMenu(SubMenuWidth, MF_STRING, 42, L"2");
+		AppendMenu(SubMenuWidth, MF_STRING, 43, L"3");
+		AppendMenu(SubMenuWidth, MF_STRING, 44, L"4");
+		AppendMenu(SubMenuWidth, MF_STRING, 45, L"5");
+		SetMenu(hWnd, MainMenu);	
+		break;	
+	
 	case WM_COMMAND:
 		wmId    = LOWORD(wParam);
 		wmEvent = HIWORD(wParam);
 		
 		// Разобрать выбор в меню:
-		if(wParam>2 && wParam<9) status=wParam;		
-		if(wParam==30)
+		if(wParam>1 && wParam<10  || wParam==20) status=wParam;	
+		if(wParam==1) bText=true;
+		if(wParam==8 || wParam==9) bPolyline=true;
+		else
 		{
-			cc1.lStructSize = sizeof(CHOOSECOLOR);
-			cc1.hInstance = NULL;
-			cc1.hwndOwner = hWnd;
-			cc1.lpCustColors = crCustColor;
-			cc1.Flags = CC_RGBINIT|CC_FULLOPEN;
-			cc1.lCustData = 0L;
-			cc1.lpfnHook = NULL;
-			cc1.rgbResult = RGB(0x80, 0x80, 0x80);
-			cc1.lpTemplateName = NULL;	
+			bPolyline=false;
+			if(bStartPolyline) 
+			{
+				bStartPolyline=false;
+				CrBitmap(hdc,rect);							
+				SelectObject(CompabitibleDC, oldBitmap1);
+				DeleteObject(CompabitibleBitmap);
+				DeleteDC(CompabitibleDC);
+
+			}
+		}
+		if(wParam==30) 
+		{
+			ccPen.lStructSize = sizeof(CHOOSECOLOR);
+			ccPen.hInstance = NULL;
+			ccPen.hwndOwner = hWnd;
+			ccPen.lpCustColors = crCustColor;
+			ccPen.Flags = CC_RGBINIT|CC_FULLOPEN;
+			ccPen.lCustData = 0L;
+			ccPen.lpfnHook = NULL;
+			ccPen.rgbResult = RGB(0x80, 0x80, 0x80);
+			ccPen.lpTemplateName = NULL;	
 			InvalidateRect(hWnd,NULL,TRUE);
 			UpdateWindow(hWnd);
-			if(ChooseColor(&cc1))
+			if(ChooseColor(&ccPen))
 			{
 				DeleteObject(hPen);
-				hPen=CreatePen(PS_SOLID, Width, cc1.rgbResult);
+				hPen=CreatePen(PS_SOLID, Width, ccPen.rgbResult);
 				DeleteObject(SelectObject(hdc,hPen));
-				DeleteObject(SelectObject(hdcMem,hPen));
 			}
 		}
 		if(wParam==31)
 		{
-			cc2.lStructSize = sizeof(CHOOSECOLOR);
-			cc2.hInstance = NULL;
-			cc2.hwndOwner = hWnd;
-			cc2.lpCustColors = crCustColor;
-			cc2.Flags = CC_RGBINIT|CC_FULLOPEN;
-			cc2.lCustData = 0L;
-			cc2.lpfnHook = NULL;
-			cc2.rgbResult = RGB(0x80, 0x80, 0x80);
-			cc2.lpTemplateName = NULL;	
+			ccBrush.lStructSize = sizeof(CHOOSECOLOR);
+			ccBrush.hInstance = NULL;
+			ccBrush.hwndOwner = hWnd;
+			ccBrush.lpCustColors = crCustColor;
+			ccBrush.Flags = CC_RGBINIT|CC_FULLOPEN;
+			ccBrush.lCustData = 0L;
+			ccBrush.lpfnHook = NULL;
+			ccBrush.rgbResult = RGB(0x80, 0x80, 0x80);
+			ccBrush.lpTemplateName = NULL;	
 			InvalidateRect(hWnd,NULL,TRUE);
 			UpdateWindow(hWnd);
-			if(ChooseColor(&cc2))
+			if(ChooseColor(&ccBrush))
 			{
 				DeleteObject(hBrush);
-				hBrush=CreateSolidBrush(cc2.rgbResult);
+				hBrush=CreateSolidBrush(ccBrush.rgbResult);
 
 			}
 		}
@@ -272,7 +320,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		{	
 			Width=wParam-40;;
 			DeleteObject(hPen);
-			hPen=CreatePen(PS_SOLID, Width, cc1.rgbResult);
+			hPen=CreatePen(PS_SOLID, Width, ccPen.rgbResult);
 			DeleteObject(SelectObject(hdc,hPen));
 		}
 		switch (wmId)
@@ -287,84 +335,118 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			return DefWindowProc(hWnd, message, wParam, lParam);
 		}
 		break;
-	case WM_CREATE:			
-		hdc=GetDC(hWnd);
-		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuFile,L"File");
-		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuDraw,L"Draw");
-		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuAction,L"Action");		
-		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuColor,L"Color");
-		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuWidth,L"Width");
-		AppendMenu(SubMenuDraw, MF_STRING, 3, L"Pen");
-		AppendMenu(SubMenuDraw, MF_STRING, 4, L"Line");	
-		AppendMenu(SubMenuDraw, MF_STRING, 5, L"Triangle");
-		AppendMenu(SubMenuDraw, MF_STRING, 6, L"Rectangle");
-		AppendMenu(SubMenuDraw, MF_STRING, 7, L"Ellipse");
-		AppendMenu(SubMenuDraw, MF_STRING, 8, L"Poliline");		
-		AppendMenu(SubMenuFile, MF_STRING, 10, L"SaveFile");
-		AppendMenu(SubMenuFile, MF_STRING, 11, L"OpenFile");
-		AppendMenu(SubMenuFile, MF_STRING, 11, L"Print");
-		AppendMenu(SubMenuFile, MF_STRING, 12, L"Exit");
-		AppendMenu(SubMenuAction, MF_STRING, 20, L"Zoom");
-		AppendMenu(SubMenuAction, MF_STRING, 21, L"Pan");
-		AppendMenu(SubMenuColor, MF_STRING, 30, L"PenColor");
-		AppendMenu(SubMenuColor, MF_STRING, 32, L"TransparentFill");
-		AppendMenu(SubMenuColor, MF_STRING, 31, L"FillColor");	
-		AppendMenu(SubMenuWidth, MF_STRING, 41, L"1");
-		AppendMenu(SubMenuWidth, MF_STRING, 42, L"2");
-		AppendMenu(SubMenuWidth, MF_STRING, 43, L"3");
-		AppendMenu(SubMenuWidth, MF_STRING, 44, L"4");
-		AppendMenu(SubMenuWidth, MF_STRING, 45, L"5");
-		SetMenu(hWnd, MainMenu);	
-		break;
 
 
-	case WM_LBUTTONDOWN:
 
-		
-		if(flag3) 
+	case WM_LBUTTONDOWN:		
+		if(Start) 
 		{	
 			GetClientRect(hWnd,&rect);
 			CrBitmap(hdc,rect);
-			flag3=false;
+			Start=false;
 		}	
-		CompabitibleDC = CreateCompatibleDC(hdc);				
-		CompabitibleBitmap = CreateCompatibleBitmap(hdc,rect.right,rect.bottom);							
-		oldBitmap1 = SelectObject(CompabitibleDC, CompabitibleBitmap);
-		FillRect(CompabitibleDC,&rect,WHITE_BRUSH);
-		LdBitmap(CompabitibleDC,hWnd,rect);						
-		flag=true;
 		StartPoint.x=LOWORD(lParam);	     
 		StartPoint.y=HIWORD(lParam);		
+		if(bStartPolyline)
+		{
+			MoveToEx(hdc,PrevPolylinePoint.x,PrevPolylinePoint.y,NULL);
+			LineTo(hdc,StartPoint.x,StartPoint.y);
+		}		
+		if(!bStartPolyline)
+		{
+			CompabitibleDC = CreateCompatibleDC(hdc);				
+			CompabitibleBitmap = CreateCompatibleBitmap(hdc,rect.right,rect.bottom);							
+			oldBitmap1 = SelectObject(CompabitibleDC, CompabitibleBitmap);
+			FillRect(CompabitibleDC,&rect,WHITE_BRUSH);
+			LdBitmap(CompabitibleDC,hWnd,rect);		
+		}
+		Move=true;
+		if(bPolyline)
+		{
+			bStartPolyline=true;
+			bPolyline=false; 
+			StartPolylinePoint.x=LOWORD(lParam);
+			StartPolylinePoint.y=HIWORD(lParam);
+			PrevPolylinePoint.x=LOWORD(lParam);
+			PrevPolylinePoint.y=HIWORD(lParam);
+		}	
 		break;
-	case WM_KEYDOWN:
-		if ((GetAsyncKeyState(VK_CONTROL)) && (GetAsyncKeyState(0x5A))){
-		flag1 = true;		
-		InvalidateRect(hWnd,NULL,TRUE);
-		UpdateWindow(hWnd);		
+	case WM_RBUTTONDOWN:
+		if(bStartPolyline)
+		{
+			bStartPolyline=false;	
+			bPolyline=true;
+			if(status==9)
+			{
+				MoveToEx(hdc,PrevPolylinePoint.x,PrevPolylinePoint.y,NULL);	
+				LineTo(hdc,StartPolylinePoint.x,StartPolylinePoint.y);				
+			}
+			CrBitmap(hdc,rect);							
+			SelectObject(CompabitibleDC, oldBitmap1);
+			DeleteObject(CompabitibleBitmap);
+			DeleteDC(CompabitibleDC);
 		}
 		break;
+	case WM_KEYDOWN:
+		if ((GetAsyncKeyState(VK_CONTROL)) && (GetAsyncKeyState(0x5A)))
+		{
+			Cancel = true;		
+			InvalidateRect(hWnd,NULL,TRUE);
+			UpdateWindow(hWnd);		
+		}
+		break;
+	case  WM_CHAR:
+		if(bText)
+		{
+								
+		}
+		break;	
 	case WM_LBUTTONUP:
-		CrBitmap(hdc,rect);		
-		flag=false;				
-		SelectObject(CompabitibleDC, oldBitmap1);
-		DeleteObject(CompabitibleBitmap);
-		DeleteDC(CompabitibleDC);
+		Move=false;	
+		if(!bStartPolyline) 
+		{	
+			CrBitmap(hdc,rect);							
+			SelectObject(CompabitibleDC, oldBitmap1);
+			DeleteObject(CompabitibleBitmap);
+			DeleteDC(CompabitibleDC);
+		}
+		else
+		{						
+			MoveToEx(CompabitibleDC,PrevPolylinePoint.x,PrevPolylinePoint.y,NULL);
+			LineTo(CompabitibleDC,EndPoint.x,EndPoint.y);
+			PrevPolylinePoint=EndPoint;
+			
+		}
 		break;
 	case WM_MOUSEMOVE:			
 		EndPoint.x=LOWORD(lParam);	     
 		EndPoint.y=HIWORD(lParam);	       		
 		GetClientRect(hWnd,&rect);
-		if(flag)
+		if(Move)
 		{
-				
+			
+			if(status==2)
+			{
+				DeleteObject(hPen);
+				hPen=CreatePen(PS_SOLID,10,RGB(255,255,255));
+				DeleteObject(SelectObject(hdc,hPen));	
+				MoveToEx(hdc,PrevPoint.x,PrevPoint.y,NULL);
+				LineTo(hdc,EndPoint.x,EndPoint.y);
+				DeleteObject(hPen);
+				hPen=CreatePen(PS_SOLID, Width, ccPen.rgbResult);
+				DeleteObject(SelectObject(hdc,hPen));	
+
+			}							
 			if(status==3)
 			{
 				
-				MoveToEx(hdc,PrevPoint.x,PrevPoint.y,NULL);
-				LineTo(hdc,EndPoint.x,EndPoint.y);
+				
+					MoveToEx(hdc,PrevPoint.x,PrevPoint.y,NULL);
+					LineTo(hdc,EndPoint.x,EndPoint.y);
+
 			}
 		
-			if(status>3 && status<8)
+			if(status>3 && status<10)
 			{								
 				hdcMem = CreateCompatibleDC(hdc);				
 				hBitmap = CreateCompatibleBitmap(hdc,rect.right,rect.bottom);							
@@ -374,6 +456,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				DeleteObject(SelectObject(hdcMem,hBrush));
 				BitBlt(hdcMem, 0, 0, rect.right, rect.bottom, CompabitibleDC, 0, 0, SRCCOPY);		
 			}
+
 			switch(status)
 			{
 				
@@ -398,10 +481,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				case 7:												
 					Ellipse(hdcMem,StartPoint.x,StartPoint.y,StartPoint.x-(StartPoint.x-EndPoint.x),StartPoint.y-(StartPoint.y-EndPoint.y));
 					break;
+				case 8:									
+					MoveToEx(hdcMem,PrevPolylinePoint.x,PrevPolylinePoint.y,NULL);
+					LineTo(hdcMem,EndPoint.x,EndPoint.y);
+					break;
+				case 9:									
+					MoveToEx(hdcMem,PrevPolylinePoint.x,PrevPolylinePoint.y,NULL);
+					LineTo(hdcMem,EndPoint.x,EndPoint.y);
+					break;
+				case 20:
+					BitBlt(hdc,EndPoint.x-StartPoint.x, EndPoint.y-StartPoint.y, rect.right-1, rect.bottom, CompabitibleDC, 0, 0, SRCCOPY);	
+					break;
 				default:	
 					break;
 			}	
-			if(status>3 && status<8)
+			if(status>3 && status<10)
 			{
 				
 				BitBlt(hdc, 0, 0, rect.right, rect.bottom, hdcMem, 0, 0, SRCCOPY);					
@@ -417,7 +511,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		hdc1 = BeginPaint(hWnd, &ps);
 		// TODO: добавьте любой код отрисовки...			 
 		LdBitmap(hdc1, hWnd,rect);
-		flag1=false;
+		Cancel=false;
 		EndPaint(hWnd, &ps);
 		break;
 	case WM_DESTROY:
