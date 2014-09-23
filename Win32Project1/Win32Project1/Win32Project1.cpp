@@ -204,7 +204,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	HGDIOBJ static oldBitmap,oldBitmap1,oldPen,oldPen1;
 	HPEN static hPen=(PS_SOLID, 1, RGB(0,0,0));
 	HBRUSH static hBrush;
-	
+	POINT static PointsPolygon[20];
+	int static PointsCount=0;
 	static COLORREF  crCustColor[16];
 	static CHOOSECOLOR ccPen,ccBrush;
 	switch (message)
@@ -256,7 +257,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		// Разобрать выбор в меню:
 		if(wParam>1 && wParam<10  || wParam==20) status=wParam;	
 		if(wParam==1) bText=true;
-		if(wParam==8 || wParam==9) bPolyline=true;
+		if(status==8 || status==9) bPolyline=true;
 		else
 		{
 			bPolyline=false;
@@ -267,7 +268,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				SelectObject(CompabitibleDC, oldBitmap1);
 				DeleteObject(CompabitibleBitmap);
 				DeleteDC(CompabitibleDC);
-
+				PointsCount=0;
 			}
 		}
 		if(wParam==30) 
@@ -363,6 +364,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		Move=true;
 		if(bPolyline)
 		{
+			PointsPolygon[PointsCount].x=StartPoint.x;
+			PointsPolygon[PointsCount].y=StartPoint.y;
+			PointsCount++;
 			bStartPolyline=true;
 			bPolyline=false; 
 			StartPolylinePoint.x=LOWORD(lParam);
@@ -378,9 +382,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			bPolyline=true;
 			if(status==9)
 			{
-				MoveToEx(hdc,PrevPolylinePoint.x,PrevPolylinePoint.y,NULL);	
-				LineTo(hdc,StartPolylinePoint.x,StartPolylinePoint.y);				
+				
+				DeleteObject(SelectObject(CompabitibleDC,hBrush));
+				Polygon(CompabitibleDC,PointsPolygon,PointsCount);
+				PointsCount=0;
+				//MoveToEx(CompabitibleDC,PrevPolylinePoint.x,PrevPolylinePoint.y,NULL);	
+			//	LineTo(CompabitibleDC,StartPolylinePoint.x,StartPolylinePoint.y);				
 			}
+			BitBlt(hdc,0,0,rect.right,rect.bottom,CompabitibleDC,0,0,SRCCOPY);
 			CrBitmap(hdc,rect);							
 			SelectObject(CompabitibleDC, oldBitmap1);
 			DeleteObject(CompabitibleBitmap);
@@ -415,6 +424,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			MoveToEx(CompabitibleDC,PrevPolylinePoint.x,PrevPolylinePoint.y,NULL);
 			LineTo(CompabitibleDC,EndPoint.x,EndPoint.y);
 			PrevPolylinePoint=EndPoint;
+			PointsPolygon[PointsCount].x=EndPoint.x;
+			PointsPolygon[PointsCount].y=EndPoint.y;
+			PointsCount++;
 			
 		}
 		break;
@@ -428,8 +440,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			if(status==2)
 			{
 				DeleteObject(hPen);
-				hPen=CreatePen(PS_SOLID,10,RGB(255,255,255));
-				DeleteObject(SelectObject(hdc,hPen));	
+				hPen=CreatePen(PS_SOLID,15,RGB(255,255,255));
+				DeleteObject(SelectObject(hdc,hPen));				
 				MoveToEx(hdc,PrevPoint.x,PrevPoint.y,NULL);
 				LineTo(hdc,EndPoint.x,EndPoint.y);
 				DeleteObject(hPen);
@@ -438,12 +450,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 			}							
 			if(status==3)
-			{
-				
-				
+			{			
 					MoveToEx(hdc,PrevPoint.x,PrevPoint.y,NULL);
 					LineTo(hdc,EndPoint.x,EndPoint.y);
-
 			}
 		
 			if(status>3 && status<10)
@@ -466,17 +475,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					break;
 				
 				case 5:			
-					MoveToEx(hdcMem,StartPoint.x,StartPoint.y,NULL);
-					LineTo(hdcMem,StartPoint.x-(StartPoint.x-EndPoint.x),StartPoint.y);
-					LineTo(hdcMem,StartPoint.x-(StartPoint.x-EndPoint.x)/2,StartPoint.y-(StartPoint.y-EndPoint.y));
-					LineTo(hdcMem,StartPoint.x,StartPoint.y);
+					POINT Points[3];
+					Points[1].x=StartPoint.x-(StartPoint.x-EndPoint.x);
+					Points[1].y=StartPoint.y;
+					Points[2].x=StartPoint.x-(StartPoint.x-EndPoint.x)/2;
+					Points[2].y=StartPoint.y-(StartPoint.y-EndPoint.y);
+					Points[0].x=StartPoint.x;
+					Points[0].y=StartPoint.y;
+					Polygon(hdcMem,Points,3);
 					break;
 				case 6:				
-					MoveToEx(hdcMem,StartPoint.x,StartPoint.y,NULL);
-					LineTo(hdcMem,StartPoint.x-(StartPoint.x-EndPoint.x),StartPoint.y);
-					LineTo(hdcMem,StartPoint.x-(StartPoint.x-EndPoint.x),StartPoint.y-(StartPoint.y-EndPoint.y));
-					LineTo(hdcMem,StartPoint.x,StartPoint.y-(StartPoint.y-EndPoint.y));
-					LineTo(hdcMem,StartPoint.x,StartPoint.y);
+					Rectangle(hdcMem,StartPoint.x-(StartPoint.x-EndPoint.x),StartPoint.y,StartPoint.x,StartPoint.y-(StartPoint.y-EndPoint.y));
 					break;
 				case 7:												
 					Ellipse(hdcMem,StartPoint.x,StartPoint.y,StartPoint.x-(StartPoint.x-EndPoint.x),StartPoint.y-(StartPoint.y-EndPoint.y));
@@ -488,8 +497,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				case 9:									
 					MoveToEx(hdcMem,PrevPolylinePoint.x,PrevPolylinePoint.y,NULL);
 					LineTo(hdcMem,EndPoint.x,EndPoint.y);
+					
 					break;
 				case 20:
+					
 					BitBlt(hdc,EndPoint.x-StartPoint.x, EndPoint.y-StartPoint.y, rect.right-1, rect.bottom, CompabitibleDC, 0, 0, SRCCOPY);	
 					break;
 				default:	
@@ -510,6 +521,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     case WM_PAINT:
 		hdc1 = BeginPaint(hWnd, &ps);
 		// TODO: добавьте любой код отрисовки...			 
+		
 		LdBitmap(hdc1, hWnd,rect);
 		Cancel=false;
 		EndPaint(hWnd, &ps);
