@@ -195,18 +195,24 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	int wmId, wmEvent;
 	PAINTSTRUCT ps;
-	HDC static hdc; 
+	HDC static hdc,hdc1; 
 	POINT static StartPoint,EndPoint,PrevPoint;	
-	RECT static rect,rect1;
+	RECT static rect;
 	int static status=3;
+	int static Width=1;
 	HMENU static MainMenu = CreateMenu();
 	HMENU static SubMenuDraw = CreateMenu();
 	HMENU static SubMenuAction = CreateMenu();
-	HMENU static SubMenuFile= CreateMenu();		
-	HDC static hdcMem;
-	HBITMAP static hBitmap;
-	HGDIOBJ static oldBitmap;
-
+	HMENU static SubMenuFile = CreateMenu();		
+	HMENU static SubMenuColor = CreateMenu();
+	HMENU static SubMenuWidth = CreateMenu();
+	HDC static hdcMem,CompabitibleDC;
+	HBITMAP static hBitmap,CompabitibleBitmap;
+	HGDIOBJ static oldBitmap,oldBitmap1,oldPen,oldPen1;
+	HPEN static hPen=(PS_SOLID, 1, RGB(0,0,0));
+	HBRUSH static hBrush;
+	static COLORREF  crCustColor[16];
+	static CHOOSECOLOR cc1,cc2;
 	switch (message)
 	{
 	case WM_COMMAND:
@@ -214,7 +220,37 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		wmEvent = HIWORD(wParam);
 		
 		// Разобрать выбор в меню:
-		status=wParam;
+		if(wParam>2 && wParam<9) status=wParam;
+		
+		if(wParam==30)
+		{
+			cc1.lStructSize = sizeof(CHOOSECOLOR);
+			cc1.hInstance = NULL;
+			cc1.hwndOwner = hWnd;
+			cc1.lpCustColors = crCustColor;
+			cc1.Flags = CC_RGBINIT|CC_FULLOPEN;
+			cc1.lCustData = 0L;
+			cc1.lpfnHook = NULL;
+			cc1.rgbResult = RGB(0x80, 0x80, 0x80);
+			cc1.lpTemplateName = NULL;	
+			InvalidateRect(hWnd,NULL,TRUE);
+			UpdateWindow(hWnd);
+			if(ChooseColor(&cc1))
+			{
+				DeleteObject(hPen);
+				hPen=CreatePen(PS_SOLID, Width, cc1.rgbResult);
+				DeleteObject(SelectObject(hdc,hPen));
+				DeleteObject(SelectObject(hdcMem,hPen));
+			}
+		}
+		if(wParam>40 && wParam<46) 
+		{	
+			Width=wParam-40;;
+			DeleteObject(hPen);
+			hPen=CreatePen(PS_SOLID, Width, cc1.rgbResult);
+			DeleteObject(SelectObject(hdc,hPen));
+			DeleteObject(SelectObject(hdcMem,hPen));
+		}
 		switch (wmId)
 		{
 		case IDM_ABOUT:
@@ -228,9 +264,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		break;
 	case WM_CREATE:			
+		hdc=GetDC(hWnd);
 		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuFile,L"File");
 		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuDraw,L"Draw");
 		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuAction,L"Action");		
+		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuColor,L"Color");
+		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuWidth,L"Width");
 		AppendMenu(SubMenuDraw, MF_STRING, 3, L"Pen");
 		AppendMenu(SubMenuDraw, MF_STRING, 4, L"Line");	
 		AppendMenu(SubMenuDraw, MF_STRING, 5, L"Triangle");
@@ -243,22 +282,34 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		AppendMenu(SubMenuFile, MF_STRING, 12, L"Exit");
 		AppendMenu(SubMenuAction, MF_STRING, 20, L"Zoom");
 		AppendMenu(SubMenuAction, MF_STRING, 21, L"Move");
+		AppendMenu(SubMenuColor, MF_STRING, 30, L"PenColor");
+		AppendMenu(SubMenuColor, MF_STRING, 31, L"BrushColor");
+		AppendMenu(SubMenuWidth, MF_STRING, 41, L"1");
+		AppendMenu(SubMenuWidth, MF_STRING, 42, L"2");
+		AppendMenu(SubMenuWidth, MF_STRING, 43, L"3");
+		AppendMenu(SubMenuWidth, MF_STRING, 44, L"4");
+		AppendMenu(SubMenuWidth, MF_STRING, 45, L"5");
 		SetMenu(hWnd, MainMenu);	
 		break;
 
 
 	case WM_LBUTTONDOWN:
+
+		
 		if(flag3) 
 		{	
 			GetClientRect(hWnd,&rect);
 			CrBitmap(hdc,rect);
 			flag3=false;
 		}	
-				
+		CompabitibleDC = CreateCompatibleDC(hdc);				
+		CompabitibleBitmap = CreateCompatibleBitmap(hdc,rect.right,rect.bottom);							
+		oldBitmap1 = SelectObject(CompabitibleDC, CompabitibleBitmap);
+		FillRect(CompabitibleDC,&rect,WHITE_BRUSH);
+		LdBitmap(CompabitibleDC,hWnd,rect);						
 		flag=true;
 		StartPoint.x=LOWORD(lParam);	     
 		StartPoint.y=HIWORD(lParam);		
-		ReleaseDC(hWnd, hdc);
 		break;
 	case WM_KEYDOWN:
 		if ((GetAsyncKeyState(VK_CONTROL)) && (GetAsyncKeyState(0x5A))){
@@ -268,33 +319,34 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		break;
 	case WM_LBUTTONUP:
-		hdc = GetDC(hWnd);
 		CrBitmap(hdc,rect);		
-		flag=false;
-		ReleaseDC(hWnd,hdc);
+		flag=false;				
+		SelectObject(CompabitibleDC, oldBitmap1);
+		DeleteObject(CompabitibleBitmap);
+		DeleteDC(CompabitibleDC);
 		break;
-	case WM_MOUSEMOVE:	
-		hdc=GetDC(hWnd);			
+	case WM_MOUSEMOVE:			
 		EndPoint.x=LOWORD(lParam);	     
 		EndPoint.y=HIWORD(lParam);	       		
 		GetClientRect(hWnd,&rect);
-		if(flag )
+		if(flag)
 		{
+				
 			if(status==3)
 			{
+				
 				MoveToEx(hdc,PrevPoint.x,PrevPoint.y,NULL);
 				LineTo(hdc,EndPoint.x,EndPoint.y);
 			}
 		
 			if(status>3 && status<8)
-			{				
-				
+			{								
 				hdcMem = CreateCompatibleDC(hdc);				
 				hBitmap = CreateCompatibleBitmap(hdc,rect.right,rect.bottom);							
 				oldBitmap = SelectObject(hdcMem, hBitmap);
-				FillRect(hdcMem,&rect,WHITE_BRUSH);
-			//	DeleteObject(SelectObject(hdcMem, hBitmap));
-				LdBitmap(hdcMem,hWnd,rect);
+				FillRect(hdcMem,&rect,WHITE_BRUSH);				
+				oldPen1 = SelectObject(hdcMem,hPen);
+				BitBlt(hdcMem, 0, 0, rect.right, rect.bottom, CompabitibleDC, 0, 0, SRCCOPY);		
 			}
 			switch(status)
 			{
@@ -314,7 +366,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					MoveToEx(hdcMem,StartPoint.x,StartPoint.y,NULL);
 					LineTo(hdcMem,StartPoint.x-(StartPoint.x-EndPoint.x),StartPoint.y);
 					LineTo(hdcMem,StartPoint.x-(StartPoint.x-EndPoint.x),StartPoint.y-(StartPoint.y-EndPoint.y));
-					LineTo(hdcMem,StartPoint.x,StartPoint.y-(StartPoint.y-EndPoint.x));
+					LineTo(hdcMem,StartPoint.x,StartPoint.y-(StartPoint.y-EndPoint.y));
 					LineTo(hdcMem,StartPoint.x,StartPoint.y);
 					break;
 				case 7:												
@@ -331,16 +383,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				DeleteObject(hBitmap);
 				DeleteDC(hdcMem);	
 			}
+			DeleteObject(oldPen);
+			DeleteObject(oldPen1);
 
 		}
 		PrevPoint=EndPoint;
-		GetFocus();
-		ReleaseDC(hWnd,hdc);
+		//SetCapture(hWnd);
 		break;
     case WM_PAINT:
-		hdc = BeginPaint(hWnd, &ps);
+		hdc1 = BeginPaint(hWnd, &ps);
 		// TODO: добавьте любой код отрисовки...			 
-		LdBitmap(hdc, hWnd,rect);
+		LdBitmap(hdc1, hWnd,rect);
 		flag1=false;
 		EndPaint(hWnd, &ps);
 		break;
