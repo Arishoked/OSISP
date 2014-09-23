@@ -220,8 +220,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		wmEvent = HIWORD(wParam);
 		
 		// Разобрать выбор в меню:
-		if(wParam>2 && wParam<9) status=wParam;
-		
+		if(wParam>2 && wParam<9) status=wParam;		
 		if(wParam==30)
 		{
 			cc1.lStructSize = sizeof(CHOOSECOLOR);
@@ -243,13 +242,38 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				DeleteObject(SelectObject(hdcMem,hPen));
 			}
 		}
+		if(wParam==31)
+		{
+			cc2.lStructSize = sizeof(CHOOSECOLOR);
+			cc2.hInstance = NULL;
+			cc2.hwndOwner = hWnd;
+			cc2.lpCustColors = crCustColor;
+			cc2.Flags = CC_RGBINIT|CC_FULLOPEN;
+			cc2.lCustData = 0L;
+			cc2.lpfnHook = NULL;
+			cc2.rgbResult = RGB(0x80, 0x80, 0x80);
+			cc2.lpTemplateName = NULL;	
+			InvalidateRect(hWnd,NULL,TRUE);
+			UpdateWindow(hWnd);
+			if(ChooseColor(&cc2))
+			{
+				DeleteObject(hBrush);
+				hBrush=CreateSolidBrush(cc2.rgbResult);
+
+			}
+		}
+		if(wParam==32)
+		{
+			DeleteObject(hBrush);
+			hBrush=(HBRUSH)GetStockObject(NULL_BRUSH);
+
+		}
 		if(wParam>40 && wParam<46) 
 		{	
 			Width=wParam-40;;
 			DeleteObject(hPen);
 			hPen=CreatePen(PS_SOLID, Width, cc1.rgbResult);
 			DeleteObject(SelectObject(hdc,hPen));
-			DeleteObject(SelectObject(hdcMem,hPen));
 		}
 		switch (wmId)
 		{
@@ -281,9 +305,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		AppendMenu(SubMenuFile, MF_STRING, 11, L"Print");
 		AppendMenu(SubMenuFile, MF_STRING, 12, L"Exit");
 		AppendMenu(SubMenuAction, MF_STRING, 20, L"Zoom");
-		AppendMenu(SubMenuAction, MF_STRING, 21, L"Move");
+		AppendMenu(SubMenuAction, MF_STRING, 21, L"Pan");
 		AppendMenu(SubMenuColor, MF_STRING, 30, L"PenColor");
-		AppendMenu(SubMenuColor, MF_STRING, 31, L"BrushColor");
+		AppendMenu(SubMenuColor, MF_STRING, 32, L"TransparentFill");
+		AppendMenu(SubMenuColor, MF_STRING, 31, L"FillColor");	
 		AppendMenu(SubMenuWidth, MF_STRING, 41, L"1");
 		AppendMenu(SubMenuWidth, MF_STRING, 42, L"2");
 		AppendMenu(SubMenuWidth, MF_STRING, 43, L"3");
@@ -344,8 +369,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				hdcMem = CreateCompatibleDC(hdc);				
 				hBitmap = CreateCompatibleBitmap(hdc,rect.right,rect.bottom);							
 				oldBitmap = SelectObject(hdcMem, hBitmap);
-				FillRect(hdcMem,&rect,WHITE_BRUSH);				
-				oldPen1 = SelectObject(hdcMem,hPen);
+				FillRect(hdcMem,&rect,hBrush);				
+				DeleteObject(SelectObject(hdcMem,hPen));
+				DeleteObject(SelectObject(hdcMem,hBrush));
 				BitBlt(hdcMem, 0, 0, rect.right, rect.bottom, CompabitibleDC, 0, 0, SRCCOPY);		
 			}
 			switch(status)
@@ -383,9 +409,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				DeleteObject(hBitmap);
 				DeleteDC(hdcMem);	
 			}
-			DeleteObject(oldPen);
-			DeleteObject(oldPen1);
-
 		}
 		PrevPoint=EndPoint;
 		//SetCapture(hWnd);

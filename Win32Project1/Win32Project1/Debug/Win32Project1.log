@@ -1,4 +1,4 @@
-﻿Построение начато 23.09.2014 11:18:31.
+﻿Построение начато 23.09.2014 11:37:46.
      1>Проект "C:\Users\Arish\Documents\GitHub\OSISP\Win32Project1\Win32Project1\Win32Project1.vcxproj" в узле 2 (целевые объекты Build).
      1>ClCompile:
          C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\bin\CL.exe /c /ZI /nologo /W3 /WX- /sdl /Od /Oy- /D WIN32 /D _DEBUG /D _WINDOWS /D _UNICODE /D UNICODE /Gm /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Yu"stdafx.h" /Fp"Debug\Win32Project1.pch" /Fo"Debug\\" /Fd"Debug\vc110.pdb" /Gd /TP /analyze- /errorReport:prompt Win32Project1.cpp
@@ -12,4 +12,4 @@
 
 Построение успешно завершено.
 
-Затраченное время: 00:00:00.87
+Затраченное время: 00:00:01.04
