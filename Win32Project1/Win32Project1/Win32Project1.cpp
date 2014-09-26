@@ -128,7 +128,7 @@ void CrBitmap(HDC hdc,RECT rect)
 	HBITMAP hBitmap = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
 	HANDLE oldBitmap = SelectObject(hdcMem, hBitmap);
 	FillRect(hdcMem,&rect,WHITE_BRUSH);	
-	if(status==20) BitBlt(hdcMem, 0, 0, rect.right-4, rect.bottom-4, hdc, 0, 0, SRCCOPY);
+	if(status==20) BitBlt(hdcMem, 0, 0, rect.right, rect.bottom, hdc, 0, 0, SRCCOPY);
 	else BitBlt(hdcMem, 0, 0, rect.right, rect.bottom, hdc, 0, 0, SRCCOPY);
 	PrevBitmap=bitmaps[0];	
 	if(curBitmap<4)
@@ -188,6 +188,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	int wmId, wmEvent;
 	PAINTSTRUCT ps;
 	HDC static hdc,hdc1,hdc2; 
+	HDC static hdcFile;
 	POINT static StartPoint,EndPoint,PrevPoint,StartPolylinePoint,PrevPolylinePoint;	
 	RECT static rect;
 	BOOL static bText=false;
@@ -210,12 +211,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	COLORREF static  crCustColor[16];
 	CHOOSECOLOR static ccPen,ccBrush;
 	OPENFILENAME static ofn;
-	LPWSTR static fullpath,filename,dir;
+	char static fullpath[256],filename[256],dir[256];
 	HENHMETAFILE static hEnhMtf;
 	ENHMETAHEADER static emh;
 	PRINTDLG static pd;
 	BOOL static bZoom;
 	double static Delta,Scale;
+	HANDLE static hFile;
 	switch (message)
 	{
 	case WM_CREATE:			
@@ -296,7 +298,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				DeleteObject(hPen);
 				hPen=CreatePen(PS_SOLID, Width, ccPen.rgbResult);
-				DeleteObject(SelectObject(hdc,hPen));
+				//DeleteObject(SelectObject(hdc,hPen));
 			}
 		}
 		if(wParam==31)
@@ -340,16 +342,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			ofn.hInstance=hInst; 
 			ofn.lpstrFilter=L"Metafile (*.emf)\0*.emf\0Все файлы (*.*)\0*.*\0";
 			ofn.nFilterIndex=1;
-			ofn.lpstrFile=fullpath;
+			ofn.lpstrFile=(LPWSTR)fullpath;
 			ofn.nMaxFile=sizeof(fullpath);
-			ofn.lpstrFileTitle=filename;
+			ofn.lpstrFileTitle=(LPWSTR)filename;
 			ofn.nMaxFileTitle=sizeof(filename);
-			ofn.lpstrInitialDir=dir;
+			ofn.lpstrInitialDir=(LPWSTR)dir;
 			ofn.lpstrTitle=L"Save file as...";
 			ofn.Flags=OFN_PATHMUSTEXIST|OFN_OVERWRITEPROMPT|OFN_HIDEREADONLY|OFN_EXPLORER;
 			if(GetSaveFileName(&ofn))
 			{
-				
+				hdcFile=CreateEnhMetaFile(NULL,(LPWSTR)filename,NULL,NULL);
+				BitBlt(hdcFile,0,0,rect.right,rect.bottom,hdc,0,0,SRCCOPY);
+				hEnhMtf=CloseEnhMetaFile(hdcFile);
+				DeleteEnhMetaFile(hEnhMtf);
 			}
 		}
 		if(wParam==11)
@@ -359,16 +364,22 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			ofn.hInstance=hInst; 
 			ofn.lpstrFilter=L"Metafile (*.emf)\0*.emf\0Все файлы (*.*)\0*.*\0";
 			ofn.nFilterIndex=1;
-			ofn.lpstrFile=fullpath;
+			ofn.lpstrFile=(LPWSTR)fullpath;
     		ofn.nMaxFile=sizeof(fullpath);
-			ofn.lpstrFileTitle=filename;
+			ofn.lpstrFileTitle=(LPWSTR)filename;
 			ofn.nMaxFileTitle=sizeof(filename);
-			ofn.lpstrInitialDir=dir;
+			ofn.lpstrInitialDir=(LPWSTR)dir;
 			ofn.lpstrTitle=L"Open file...";
 			ofn.Flags=OFN_EXPLORER|OFN_CREATEPROMPT|OFN_ALLOWMULTISELECT;
 			if(GetOpenFileName(&ofn))
 			{
-              
+				hEnhMtf=GetEnhMetaFile((LPWSTR)fullpath);
+				GetEnhMetaFileHeader(hEnhMtf,sizeof(ENHMETAHEADER),&emh);
+				SetRect(&rect,emh.rclBounds.left,emh.rclBounds.top,emh.rclBounds.right,emh.rclBounds.bottom);
+				SetWindowPos(hWnd,HWND_TOP,0,0,rect.right,rect.bottom,SWP_NOMOVE);
+				PlayEnhMetaFile(hdc,hEnhMtf,&rect);			
+				CrBitmap(hdc,rect);
+				DeleteEnhMetaFile(hEnhMtf);
 			}
 		}
 		
@@ -452,12 +463,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			bZoom=false;
 			LdBitmap(hdc,hWnd,rect);
 
-		}
-		if(Start) 
-		{	
-			GetClientRect(hWnd,&rect);
-			CrBitmap(hdc,rect);
-			Start=false;
 		}	
 		StartPoint.x=LOWORD(lParam);	     
 		StartPoint.y=HIWORD(lParam);		
@@ -472,7 +477,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			CompabitibleBitmap = CreateCompatibleBitmap(hdc,rect.right,rect.bottom);							
 			oldBitmap1 = SelectObject(CompabitibleDC, CompabitibleBitmap);
 			FillRect(CompabitibleDC,&rect,WHITE_BRUSH);
-			LdBitmap(CompabitibleDC,hWnd,rect);		
+			BitBlt(CompabitibleDC,0,0,rect.right,rect.bottom,hdc,0,0,SRCCOPY);
+			//LdBitmap(CompabitibleDC,hWnd,rect);		
 		}
 		Move=true;
 		
@@ -641,7 +647,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     case WM_PAINT:
 		hdc1 = BeginPaint(hWnd, &ps);
 		// TODO: добавьте любой код отрисовки...			 
-		
 		LdBitmap(hdc1, hWnd,rect);
 		Cancel=false;
 		EndPaint(hWnd, &ps);
