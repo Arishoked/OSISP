@@ -4,8 +4,12 @@
 #include <stdio.h>
 #include <string>
 #include "Win32Project1.h"
+using namespace std;
 
 #define MAX_LOADSTRING 100
+#define ID_BUTTONTEXT 1
+#define ID_BUTTONPEN 2
+#define ID_BUTTONLINE 3
 
 // Глобальные переменные:
 HINSTANCE hInst;								// текущий экземпляр
@@ -100,7 +104,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    hInst = hInstance; // Сохранить дескриптор экземпляра в глобальной переменной
 
-   hWnd = CreateWindow(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
+   hWnd = CreateWindow(szWindowClass, "Graphics Editor", WS_OVERLAPPEDWINDOW,
       CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, NULL, NULL, hInstance, NULL);
 
    if (!hWnd)
@@ -128,8 +132,7 @@ void CrBitmap(HDC hdc,RECT rect)
 	HBITMAP hBitmap = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
 	HANDLE oldBitmap = SelectObject(hdcMem, hBitmap);
 	FillRect(hdcMem,&rect,WHITE_BRUSH);	
-	if(status==20) BitBlt(hdcMem, 0, 0, rect.right, rect.bottom, hdc, 0, 0, SRCCOPY);
-	else BitBlt(hdcMem, 0, 0, rect.right, rect.bottom, hdc, 0, 0, SRCCOPY);
+	BitBlt(hdcMem, 0, 0, rect.right, rect.bottom, hdc, 0, 0, SRCCOPY);
 	PrevBitmap=bitmaps[0];	
 	if(curBitmap<4)
 	{
@@ -189,9 +192,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	PAINTSTRUCT ps;
 	HDC static hdc,hdc1,hdc2; 
 	HDC static hdcFile;
-	POINT static StartPoint,EndPoint,PrevPoint,StartPolylinePoint,PrevPolylinePoint;	
+	POINT static StartPoint,EndPoint,PrevPoint,StartPolylinePoint,PrevPolylinePoint,TextPoint;	
 	RECT static rect;
-	BOOL static bText=false;
+	BOOL static bText=false,bTextStart=false;
 	BOOL static bPolyline=false;
 	BOOL static bStartPolyline=false;
 	int static Width=1;
@@ -218,45 +221,47 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	BOOL static bZoom;
 	double static Delta,Scale;
 	HANDLE static hFile;
+	string static Text;
+	DOCINFO di;
 	switch (message)
 	{
 	case WM_CREATE:			
 		ShowWindow(hWnd,SW_SHOWMAXIMIZED);
 		hdc=GetDC(hWnd);
-		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuFile,L"File");
-		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuDraw,L"Draw");
-		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuAction,L"Action");		
-		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuColor,L"Color");
-		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuWidth,L"Width");
+		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuFile,"File");
+		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuDraw,"Draw");
+		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuAction,"Action");		
+		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuColor,"Color");
+		AppendMenu(MainMenu,MF_POPUP,(UINT_PTR)SubMenuWidth,"Width");
 	
-		AppendMenu(SubMenuDraw, MF_STRING, 3, L"Pen");
-		AppendMenu(SubMenuDraw, MF_STRING, 4, L"Line");	
-		AppendMenu(SubMenuDraw, MF_STRING, 5, L"Triangle");
-		AppendMenu(SubMenuDraw, MF_STRING, 6, L"Rectangle");
-		AppendMenu(SubMenuDraw, MF_STRING, 7, L"Ellipse");
-		AppendMenu(SubMenuDraw, MF_STRING, 8, L"Polyline");	
-		AppendMenu(SubMenuDraw, MF_STRING, 9, L"Polygon");			
-		AppendMenu(SubMenuDraw, MF_STRING, 2, L"Eraser");	
-		AppendMenu(SubMenuDraw, MF_STRING, 1, L"Text");	
+		AppendMenu(SubMenuDraw, MF_STRING, 3, "Pen");
+		AppendMenu(SubMenuDraw, MF_STRING, 4, "Line");	
+		AppendMenu(SubMenuDraw, MF_STRING, 5, "Triangle");
+		AppendMenu(SubMenuDraw, MF_STRING, 6, "Rectangle");
+		AppendMenu(SubMenuDraw, MF_STRING, 7, "Ellipse");
+		AppendMenu(SubMenuDraw, MF_STRING, 8, "Polyline");	
+		AppendMenu(SubMenuDraw, MF_STRING, 9, "Polygon");			
+		AppendMenu(SubMenuDraw, MF_STRING, 2, "Eraser");	
+		AppendMenu(SubMenuDraw, MF_STRING, 1, "Text");	
 		
-		AppendMenu(SubMenuFile, MF_STRING, 13, L"New");
-		AppendMenu(SubMenuFile, MF_STRING, 11, L"Open");		
-		AppendMenu(SubMenuFile, MF_STRING, 10, L"Save");
-		AppendMenu(SubMenuFile, MF_STRING, 14, L"Print");
-		AppendMenu(SubMenuFile, MF_STRING, 12, L"Exit");
+		AppendMenu(SubMenuFile, MF_STRING, 13, "New");
+		AppendMenu(SubMenuFile, MF_STRING, 11, "Open");		
+		AppendMenu(SubMenuFile, MF_STRING, 10, "Save");
+		AppendMenu(SubMenuFile, MF_STRING, 14, "Print");
+		AppendMenu(SubMenuFile, MF_STRING, 12, "Exit");
 		
-		AppendMenu(SubMenuAction, MF_STRING, 20, L"Pan");		
-		AppendMenu(SubMenuAction, MF_STRING, 21, L"Zoom");
+		AppendMenu(SubMenuAction, MF_STRING, 20, "Pan");		
+		AppendMenu(SubMenuAction, MF_STRING, 21, "Zoom");
 		
-		AppendMenu(SubMenuColor, MF_STRING, 30, L"PenColor");
-		AppendMenu(SubMenuColor, MF_STRING, 32, L"TransparentFill");
-		AppendMenu(SubMenuColor, MF_STRING, 31, L"FillColor");	
+		AppendMenu(SubMenuColor, MF_STRING, 30, "PenColor");
+		AppendMenu(SubMenuColor, MF_STRING, 32, "TransparentFill");
+		AppendMenu(SubMenuColor, MF_STRING, 31, "FillColor");	
 		
-		AppendMenu(SubMenuWidth, MF_STRING, 41, L"1");
-		AppendMenu(SubMenuWidth, MF_STRING, 42, L"2");
-		AppendMenu(SubMenuWidth, MF_STRING, 43, L"3");
-		AppendMenu(SubMenuWidth, MF_STRING, 44, L"4");
-		AppendMenu(SubMenuWidth, MF_STRING, 45, L"5");
+		AppendMenu(SubMenuWidth, MF_STRING, 41, "1");
+		AppendMenu(SubMenuWidth, MF_STRING, 42, "2");
+		AppendMenu(SubMenuWidth, MF_STRING, 43, "3");
+		AppendMenu(SubMenuWidth, MF_STRING, 44, "4");
+		AppendMenu(SubMenuWidth, MF_STRING, 45, "5");
 		SetMenu(hWnd, MainMenu);	
 		break;	
 	
@@ -266,7 +271,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		
 		// Разобрать выбор в меню:
 		if(wParam>1 && wParam<10  || wParam==20) status=wParam;	
-		if(wParam==1) bText=true;
+		if(wParam==1) 
+		{
+			bText=true;
+			bTextStart=false;
+			
+			Text="";
+		}
+		else
+		{
+			bText=false;
+		}
 		if(status==8 || status==9) bPolyline=true;
 		else
 		{
@@ -340,18 +355,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			ofn.lStructSize=sizeof(OPENFILENAME);
 			ofn.hwndOwner=hWnd;
 			ofn.hInstance=hInst; 
-			ofn.lpstrFilter=L"Metafile (*.emf)\0*.emf\0Все файлы (*.*)\0*.*\0";
+			ofn.lpstrFilter="Metafile (*.emf)\0*.emf\0Все файлы (*.*)\0*.*\0";
 			ofn.nFilterIndex=1;
-			ofn.lpstrFile=(LPWSTR)fullpath;
+			ofn.lpstrFile=fullpath;
 			ofn.nMaxFile=sizeof(fullpath);
-			ofn.lpstrFileTitle=(LPWSTR)filename;
+			ofn.lpstrFileTitle=filename;
 			ofn.nMaxFileTitle=sizeof(filename);
-			ofn.lpstrInitialDir=(LPWSTR)dir;
-			ofn.lpstrTitle=L"Save file as...";
+			ofn.lpstrInitialDir=dir;
+			ofn.lpstrTitle="Save file as...";
 			ofn.Flags=OFN_PATHMUSTEXIST|OFN_OVERWRITEPROMPT|OFN_HIDEREADONLY|OFN_EXPLORER;
 			if(GetSaveFileName(&ofn))
 			{
-				hdcFile=CreateEnhMetaFile(NULL,(LPWSTR)filename,NULL,NULL);
+				hdcFile=CreateEnhMetaFile(NULL,filename,NULL,NULL);
 				BitBlt(hdcFile,0,0,rect.right,rect.bottom,hdc,0,0,SRCCOPY);
 				hEnhMtf=CloseEnhMetaFile(hdcFile);
 				DeleteEnhMetaFile(hEnhMtf);
@@ -362,21 +377,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			ofn.lStructSize=sizeof(OPENFILENAME);
 			ofn.hwndOwner=hWnd;
 			ofn.hInstance=hInst; 
-			ofn.lpstrFilter=L"Metafile (*.emf)\0*.emf\0Все файлы (*.*)\0*.*\0";
+			ofn.lpstrFilter="Metafile (*.emf)\0*.emf\0Все файлы (*.*)\0*.*\0";
 			ofn.nFilterIndex=1;
-			ofn.lpstrFile=(LPWSTR)fullpath;
+			ofn.lpstrFile=fullpath;
     		ofn.nMaxFile=sizeof(fullpath);
-			ofn.lpstrFileTitle=(LPWSTR)filename;
+			ofn.lpstrFileTitle=filename;
 			ofn.nMaxFileTitle=sizeof(filename);
-			ofn.lpstrInitialDir=(LPWSTR)dir;
-			ofn.lpstrTitle=L"Open file...";
+			ofn.lpstrInitialDir=dir;
+			ofn.lpstrTitle="Open file...";
 			ofn.Flags=OFN_EXPLORER|OFN_CREATEPROMPT|OFN_ALLOWMULTISELECT;
 			if(GetOpenFileName(&ofn))
 			{
-				hEnhMtf=GetEnhMetaFile((LPWSTR)fullpath);
+				hEnhMtf=GetEnhMetaFile(fullpath);
 				GetEnhMetaFileHeader(hEnhMtf,sizeof(ENHMETAHEADER),&emh);
 				SetRect(&rect,emh.rclBounds.left,emh.rclBounds.top,emh.rclBounds.right,emh.rclBounds.bottom);
-				SetWindowPos(hWnd,HWND_TOP,0,0,rect.right,rect.bottom,SWP_NOMOVE);
+				//SetWindowPos(hWnd,HWND_TOP,0,0,rect.right,rect.bottom,SWP_NOMOVE);
 				PlayEnhMetaFile(hdc,hEnhMtf,&rect);			
 				CrBitmap(hdc,rect);
 				DeleteEnhMetaFile(hEnhMtf);
@@ -406,21 +421,31 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 			if (PrintDlg(&pd)==TRUE)
 			{
-				
+				int Rx = GetDeviceCaps(pd.hDC, LOGPIXELSX);
+				int Ry = GetDeviceCaps(pd.hDC, LOGPIXELSY);
+				di.cbSize=sizeof(DOCINFO);
+				di.lpszDocName="Print Picture";
+				di.fwType=NULL;
+				di.lpszDatatype=NULL;
+				di.lpszOutput=NULL;
+				StartDoc(pd.hDC,&di);
+				StartPage(pd.hDC);		
+				GetClientRect(hWnd,&rect);
+				int Rx1 = GetDeviceCaps(hdc, LOGPIXELSX);
+				int Ry1 = GetDeviceCaps(hdc, LOGPIXELSY);
+				StretchBlt(pd.hDC, 0, 0,(int)((float)(0.91*rect.right*Rx/Rx1)), (int)((float)(0.91*rect.bottom*Ry/Ry1)),
+				hdc, 0, 0, rect.right, rect.bottom, SRCCOPY);
+				EndPage(pd.hDC);
+				EndDoc(pd.hDC);
+				DeleteDC(pd.hDC);
 			}
-
-
 		}
 		if(wParam==21) 
 		{
 			bZoom=true;
-			Scale=1;
-			//Delta=0;
+			Scale=1;			
 		}
-		else
-		{	
-		//	bZoom=false;
-		}
+
 		switch (wmId)
 		{
 		case IDM_ABOUT:
@@ -463,7 +488,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			bZoom=false;
 			LdBitmap(hdc,hWnd,rect);
 
-		}	
+		}
+		if(bText)
+		if(!bTextStart)
+		{
+			TextPoint.x=LOWORD(lParam);	     
+			TextPoint.y=HIWORD(lParam);	
+			bTextStart=true;
+		}
 		StartPoint.x=LOWORD(lParam);	     
 		StartPoint.y=HIWORD(lParam);		
 		if(bStartPolyline)
@@ -477,8 +509,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			CompabitibleBitmap = CreateCompatibleBitmap(hdc,rect.right,rect.bottom);							
 			oldBitmap1 = SelectObject(CompabitibleDC, CompabitibleBitmap);
 			FillRect(CompabitibleDC,&rect,WHITE_BRUSH);
-			BitBlt(CompabitibleDC,0,0,rect.right,rect.bottom,hdc,0,0,SRCCOPY);
-			//LdBitmap(CompabitibleDC,hWnd,rect);		
+			BitBlt(CompabitibleDC,0,0,rect.right-5,rect.bottom-5,hdc,0,0,SRCCOPY);	
 		}
 		Move=true;
 		
@@ -504,9 +535,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			if(status==9)
 			{
 				
-				DeleteObject(SelectObject(CompabitibleDC,hBrush));
+
+				
+				HPEN hPen1=CreatePen(PS_SOLID, Width, ccPen.rgbResult);
+				HANDLE oldPen=SelectObject(CompabitibleDC,hPen1);
+				SelectObject(CompabitibleDC,hBrush);
 				Polygon(CompabitibleDC,PointsPolygon,PointsCount);
-							
+				DeleteObject(oldPen);						
 			}
 			PointsCount=0;	
 			BitBlt(hdc,0,0,rect.right,rect.bottom,CompabitibleDC,0,0,SRCCOPY);
@@ -521,7 +556,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 	case WM_LBUTTONUP:
 		Move=false;	
-		if(!bStartPolyline) 
+		if(!bStartPolyline && !bTextStart) 
 		{	
 			CrBitmap(hdc,rect);							
 			SelectObject(CompabitibleDC, oldBitmap1);
@@ -530,13 +565,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		else
 		{						
+			HPEN hPen1=CreatePen(PS_SOLID, Width, ccPen.rgbResult);
+			HANDLE oldPen=SelectObject(CompabitibleDC,hPen1);
+			SelectObject(CompabitibleDC,hBrush);
 			MoveToEx(CompabitibleDC,PrevPolylinePoint.x,PrevPolylinePoint.y,NULL);
 			LineTo(CompabitibleDC,EndPoint.x,EndPoint.y);
 			PrevPolylinePoint=EndPoint;
 			PointsPolygon[PointsCount].x=EndPoint.x;
 			PointsPolygon[PointsCount].y=EndPoint.y;
 			PointsCount++;
-			
+			DeleteObject(oldPen);						
 		}
 		break;
 
@@ -552,7 +590,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case  WM_CHAR:
 		if(bText)
 		{
-								
+			char c=(char)wParam;
+			if(c==VK_RETURN)
+			{
+				bText=false;
+				bTextStart=false;
+				CrBitmap(hdc,rect);
+			}
+			else 
+				if(c==VK_BACK)
+					Text.pop_back();
+				else
+					Text+=c;
+			LdBitmap(hdc,hWnd,rect);
+			TextOut(hdc,TextPoint.x,TextPoint.y,Text.c_str(),strlen(Text.c_str()));								
 		}
 		break;
 
@@ -560,16 +611,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		EndPoint.x=LOWORD(lParam);	     
 		EndPoint.y=HIWORD(lParam);	       		
 		GetClientRect(hWnd,&rect);
-		if(Move)
+		if(Move && !bTextStart)
 		{
 			
 			if(status==2)
 			{
 				DeleteObject(hPen);
 				hPen=CreatePen(PS_SOLID,15,RGB(255,255,255));
-				DeleteObject(SelectObject(hdc,hPen));				
+				HANDLE oldPen=SelectObject(hdc,hPen);				
 				MoveToEx(hdc,PrevPoint.x,PrevPoint.y,NULL);
 				LineTo(hdc,EndPoint.x,EndPoint.y);
+				DeleteObject(oldPen);
 				DeleteObject(hPen);
 				hPen=CreatePen(PS_SOLID, Width, ccPen.rgbResult);
 				DeleteObject(SelectObject(hdc,hPen));	
@@ -577,8 +629,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}							
 			if(status==3)
 			{			
+					HANDLE oldPen=SelectObject(hdc,hPen);
 					MoveToEx(hdc,PrevPoint.x,PrevPoint.y,NULL);
 					LineTo(hdc,EndPoint.x,EndPoint.y);
+					DeleteObject(oldPen);
 			}
 		
 			if(status>3 && status<10)
@@ -625,8 +679,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					LineTo(hdcMem,EndPoint.x,EndPoint.y);
 					
 					break;
-				case 20:
-					
+				case 20:					
 					BitBlt(hdc,EndPoint.x-StartPoint.x, EndPoint.y-StartPoint.y, rect.right-1, rect.bottom, CompabitibleDC, 0, 0, SRCCOPY);	
 					break;
 				default:	
